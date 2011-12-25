@@ -1,0 +1,11 @@
+*~
+#*#
+.svn
+.deps
+*.o
+*.so
+lackey-x86-linux
+Makefile
+Makefile.in
+tests
+docs
