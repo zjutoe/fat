@@ -394,7 +394,7 @@ typedef
    IRAtom;
 
 typedef 
-   enum { Event_Ir, Event_Dr, Event_Dw, Event_Dm }
+   enum { Event_Ir, Event_Dr, Event_Dw, Event_Dm, Event_Rg, Event_Rp }
    EventKind;
 
 typedef
@@ -461,6 +461,22 @@ static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
    VG_(printf)(" M %08lx,%lu\n", addr, size);
 }
 
+/* static VG_REGPARM(2) void trace_get(Addr addr, Int offset) */
+/* { */
+/*    VG_(printf)(" G %08lx, %lu\n", addr, offset); */
+/* } */
+
+/* static VG_REGPARM(2) void trace_put(Addr addr, Int offset) */
+/* { */
+/* 	return; */
+/* 	VG_(printf)(" P %08lx, %lu\n", addr, offset); */
+/* } */
+
+static void trace_put(Int* offset)
+{
+	VG_(printf)(" P %d\n", *offset);
+}
+
 
 static void flushEvents(IRSB* sb)
 {
@@ -488,6 +504,13 @@ static void flushEvents(IRSB* sb)
 
          case Event_Dm: helperName = "trace_modify";
                         helperAddr =  trace_modify; break;
+
+         /* case Event_Rg: helperName = "trace_get"; */
+	 /* 	        helperAddr =  trace_get; break; */
+
+         case Event_Rp: helperName = "trace_put";
+		        helperAddr =  trace_put; break;
+
          default:
             tl_assert(0);
       }
@@ -572,6 +595,23 @@ void addEvent_Dw ( IRSB* sb, IRAtom* daddr, Int dsize )
    events_used++;
 }
 
+/* static */
+/* void addEvent_Rp ( IRSB* sb, Int offset ) */
+/* { */
+/*    Event* evt; */
+/*    /\* tl_assert(clo_trace_mem); *\/ */
+/*    /\* tl_assert(isIRAtom(daddr)); *\/ */
+/*    /\* tl_assert(dsize >= 1 && dsize <= MAX_DSIZE); *\/ */
+/*    if (events_used == N_EVENTS) */
+/*       flushEvents(sb); */
+/*    tl_assert(events_used >= 0 && events_used < N_EVENTS); */
+/*    evt = &events[events_used]; */
+/*    evt->ekind = Event_Rp; */
+/*    evt->size  = offset;		/\* FIXME now it's a hack *\/ */
+/*    evt->addr  = 0; */
+/*    events_used++; */
+/* } */
+
 
 /*------------------------------------------------------------*/
 /*--- Stuff for --trace-superblocks                        ---*/
@@ -614,6 +654,7 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
    Addr       iaddr = 0, dst;
    UInt       ilen = 0;
    Bool       condition_inverted = False;
+   IRExpr**   argv;
 
    if (gWordTy != hWordTy) {
       /* We don't currently support this case. */
@@ -667,11 +708,24 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
       switch (st->tag) {
          case Ist_NoOp:
          case Ist_AbiHint:
-         case Ist_Put:
-         case Ist_PutI:
          case Ist_MBE:
             addStmtToIRSB( sbOut, st );
             break;
+
+         case Ist_Put:
+		 // addEvent_Rp( sbOut, st->Ist.Put.offset );
+		 argv = mkIRExprVec_2( st->Ist.Put.data,
+				       mkIRExpr_HWord( st->Ist.Put.offset ) );
+		 di = unsafeIRDirty_0_N( 1, "trace_put",
+		 			 VG_(fnptr_to_fnentry)( &trace_put ),
+		 			 mkIRExprVec_1( mkIRExpr_HWord(st->Ist.Put.offset)) );
+		 addStmtToIRSB( sbOut, IRStmt_Dirty(di) );
+
+		 addStmtToIRSB( sbOut, st );
+		 break;
+         case Ist_PutI:
+		 addStmtToIRSB( sbOut, st );
+		 break;
 
          case Ist_IMark:
             if (clo_basic_counts) {
