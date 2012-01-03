@@ -472,9 +472,14 @@ static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
 /* 	VG_(printf)(" P %08lx, %lu\n", addr, offset); */
 /* } */
 
-static void trace_put(Int* offset)
+static void trace_put(Int offset)
 {
-	VG_(printf)(" P %d\n", *offset);
+	VG_(printf)(" P %d\n", offset);
+}
+
+static void trace_get(Int offset)
+{
+	VG_(printf)(" G %d\n", offset);
 }
 
 
@@ -508,8 +513,8 @@ static void flushEvents(IRSB* sb)
          /* case Event_Rg: helperName = "trace_get"; */
 	 /* 	        helperAddr =  trace_get; break; */
 
-         case Event_Rp: helperName = "trace_put";
-		        helperAddr =  trace_put; break;
+         /* case Event_Rp: helperName = "trace_put"; */
+	 /* 	        helperAddr =  trace_put; break; */
 
          default:
             tl_assert(0);
@@ -714,11 +719,10 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
 
          case Ist_Put:
 		 // addEvent_Rp( sbOut, st->Ist.Put.offset );
-		 argv = mkIRExprVec_2( st->Ist.Put.data,
-				       mkIRExpr_HWord( st->Ist.Put.offset ) );
-		 di = unsafeIRDirty_0_N( 1, "trace_put",
+		 argv = mkIRExprVec_1( mkIRExpr_HWord( st->Ist.Put.offset ) );
+		 di = unsafeIRDirty_0_N( 0, "trace_put",
 		 			 VG_(fnptr_to_fnentry)( &trace_put ),
-		 			 mkIRExprVec_1( mkIRExpr_HWord(st->Ist.Put.offset)) );
+					 argv);
 		 addStmtToIRSB( sbOut, IRStmt_Dirty(di) );
 
 		 addStmtToIRSB( sbOut, st );
@@ -781,6 +785,13 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
                   addEvent_Dr( sbOut, data->Iex.Load.addr,
                                sizeofIRType(data->Iex.Load.ty) );
                }
+	       if (data->tag == Iex_Get) {
+		 argv = mkIRExprVec_1( mkIRExpr_HWord( data->Iex.Get.offset ) );
+		 di = unsafeIRDirty_0_N( 0, "trace_get",
+		 			 VG_(fnptr_to_fnentry)( &trace_get ),
+					 argv);
+		 addStmtToIRSB( sbOut, IRStmt_Dirty(di) );		       
+	       }
             }
             if (clo_detailed_counts) {
                IRExpr* expr = st->Ist.WrTmp.data;
