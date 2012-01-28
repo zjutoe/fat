@@ -498,8 +498,10 @@ static void flushEvents(IRSB* sb)
       
       // Decide on helper fn to call and args to pass it.
       switch (ev->ekind) {
-         case Event_Ir: helperName = "trace_instr";
-                        helperAddr =  trace_instr;  break;
+         case Event_Ir: 
+	      //helperName = "trace_instr";
+	      //helperAddr =  trace_instr;  break;
+	      continue;
 
          case Event_Dr: helperName = "trace_load";
                         helperAddr =  trace_load;   break;
