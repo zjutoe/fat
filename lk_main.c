@@ -396,7 +396,7 @@ typedef
    IRAtom;
 
 typedef 
-   enum { Event_Ir, Event_Dr, Event_Dw, Event_Dm, Event_Rg, Event_Rp }
+   enum { Event_Ir, Event_Dr, Event_Dw, Event_Dm }
    EventKind;
 
 typedef
@@ -492,12 +492,6 @@ static void flushEvents(IRSB* sb)
          case Event_Dm: helperName = "trace_modify";
                         helperAddr =  trace_modify; break;
 
-         /* case Event_Rg: helperName = "trace_get"; */
-	 /* 	        helperAddr =  trace_get; break; */
-
-         /* case Event_Rp: helperName = "trace_put"; */
-	 /* 	        helperAddr =  trace_put; break; */
-
          default:
             tl_assert(0);
       }
@@ -582,23 +576,6 @@ void addEvent_Dw ( IRSB* sb, IRAtom* daddr, Int dsize )
    events_used++;
 }
 
-/* static */
-/* void addEvent_Rp ( IRSB* sb, Int offset ) */
-/* { */
-/*    Event* evt; */
-/*    /\* tl_assert(clo_trace_mem); *\/ */
-/*    /\* tl_assert(isIRAtom(daddr)); *\/ */
-/*    /\* tl_assert(dsize >= 1 && dsize <= MAX_DSIZE); *\/ */
-/*    if (events_used == N_EVENTS) */
-/*       flushEvents(sb); */
-/*    tl_assert(events_used >= 0 && events_used < N_EVENTS); */
-/*    evt = &events[events_used]; */
-/*    evt->ekind = Event_Rp; */
-/*    evt->size  = offset;		/\* FIXME now it's a hack *\/ */
-/*    evt->addr  = 0; */
-/*    events_used++; */
-/* } */
-
 
 /*------------------------------------------------------------*/
 /*--- Stuff for --trace-superblocks                        ---*/
@@ -611,13 +588,11 @@ static Int  n_depended_sb = 0;
 
 static void trace_put(Int offset)
 {
-	//VG_(printf)(" P %d\n", offset);
 	guest_reg_writer[offset] = current_sb;
 }
 
 static void trace_get(Int offset)
 {
-	//VG_(printf)(" G %d\n", offset);
 	Addr depended = guest_reg_writer[offset];
 	if (depended != 0 && depended != current_sb) {
 		Int i;
@@ -736,7 +711,6 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
             break;
 
          case Ist_Put:
-		 // addEvent_Rp( sbOut, st->Ist.Put.offset );
 		 argv = mkIRExprVec_1( mkIRExpr_HWord( st->Ist.Put.offset ) );
 		 di = unsafeIRDirty_0_N( 0, "trace_put",
 		 			 VG_(fnptr_to_fnentry)( &trace_put ),
