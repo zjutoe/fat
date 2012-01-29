@@ -238,6 +238,7 @@ static ULong n_SBs_entered   = 0;
 static ULong n_SBs_completed = 0;
 static ULong n_IRStmts       = 0;
 static ULong n_guest_instrs  = 0;
+static ULong n_guest_instrs_sb  = 0;
 static ULong n_Jccs          = 0;
 static ULong n_Jccs_untaken  = 0;
 static ULong n_IJccs         = 0;
@@ -266,6 +267,7 @@ static void add_one_IRStmt(void)
 static void add_one_guest_instr(void)
 {
    n_guest_instrs++;
+   n_guest_instrs_sb++;
 }
 
 static void add_one_Jcc(void)
@@ -461,28 +463,6 @@ static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
    VG_(printf)(" M %08lx,%lu\n", addr, size);
 }
 
-/* static VG_REGPARM(2) void trace_get(Addr addr, Int offset) */
-/* { */
-/*    VG_(printf)(" G %08lx, %lu\n", addr, offset); */
-/* } */
-
-/* static VG_REGPARM(2) void trace_put(Addr addr, Int offset) */
-/* { */
-/* 	return; */
-/* 	VG_(printf)(" P %08lx, %lu\n", addr, offset); */
-/* } */
-
-static void trace_put(Int offset)
-{
-	VG_(printf)(" P %d\n", offset);
-}
-
-static void trace_get(Int offset)
-{
-	VG_(printf)(" G %d\n", offset);
-}
-
-
 static void flushEvents(IRSB* sb)
 {
    Int        i;
@@ -624,10 +604,46 @@ void addEvent_Dw ( IRSB* sb, IRAtom* daddr, Int dsize )
 /*--- Stuff for --trace-superblocks                        ---*/
 /*------------------------------------------------------------*/
 
+static Addr guest_reg_writer[1000];
+static Addr depended_sb[1000];
+static Addr current_sb = 0;
+static Int  n_depended_sb = 0;
+
+static void trace_put(Int offset)
+{
+	//VG_(printf)(" P %d\n", offset);
+	guest_reg_writer[offset] = current_sb;
+}
+
+static void trace_get(Int offset)
+{
+	//VG_(printf)(" G %d\n", offset);
+	Addr depended = guest_reg_writer[offset];
+	if (depended != 0 && depended != current_sb) {
+		Int i;
+		for (i=0; i<n_depended_sb; i++)
+			if(depended_sb[i] == depended) return;
+		depended_sb[n_depended_sb++] = depended;
+	}
+}
+
 static void trace_superblock(Addr addr)
 {
-   VG_(printf)("SB %08lx\n", addr);
+	Int i;
+	if (n_depended_sb) {
+		for (i=0; i<n_depended_sb; i++) {
+			VG_(printf)(" D %08lx\n", depended_sb[i]);
+		}
+	}
+	VG_(printf)(" W %d\n", n_guest_instrs_sb);
+
+	VG_(printf)("SB %08lx\n", addr);
+
+	current_sb = addr;
+	n_depended_sb = 0;
+	n_guest_instrs_sb = 0;
 }
+
 
 
 /*------------------------------------------------------------*/
