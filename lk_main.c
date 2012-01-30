@@ -177,6 +177,7 @@
 #include "pub_tool_libcbase.h"
 #include "pub_tool_options.h"
 #include "pub_tool_machine.h"     // VG_(fnptr_to_fnentry)
+#include "pub_tool_mallocfree.h"
 
 /*------------------------------------------------------------*/
 /*--- Command line options                                 ---*/
@@ -442,6 +443,82 @@ typedef
 static Event events[N_EVENTS];
 static Int   events_used = 0;
 
+typedef struct _page {
+	Addr slot[1024];
+} page_t;
+
+typedef struct _pte {
+	page_t* slot[1024];
+} pte_t;
+
+typedef struct _pmd {
+	pte_t* slot[1024];
+} pmd_t;
+
+typedef struct _pgd {
+	pmd_t* slot[4];
+} pgd_t;
+
+
+/* FIXME the follow 3 functions are heavily redundant */
+static page_t* get_page(pte_t* pte, Addr addr)
+{
+	/* bit 10 ~ 19 */
+	Addr offset = (addr>>10) & 0x03ff;
+	page_t* page = pte->slot[offset];
+	if (!page) {
+		page = pte->slot[offset] = VG_(malloc)("lk.pagetable.1", sizeof(page_t));
+		memset(page, 0, sizeof(page_t));
+	}
+	return page;
+}
+
+static pte_t* get_pte(pmd_t* pmd, Addr addr)
+{
+	/* bit 20 ~ 29 */
+	Addr offset = addr>>20 & 0x03ff;
+	pte_t* pte = pmd->slot[offset];
+	if (!pte) {
+		pte = pmd->slot[offset] = VG_(malloc)("lk.pagetable.1", sizeof(pte_t));
+		memset(pte, 0, sizeof(pte_t));
+	}
+	return pte;
+}
+
+static pmd_t* get_pmd(pgd_t* pgd, Addr addr)
+{
+	/* bit 30 ~ 31 */
+	Addr offset = addr>>30;
+	pmd_t* pmd = pgd->slot[offset];
+	if (!pmd) {
+		pmd = pgd->slot[offset] = VG_(malloc)("lk.pagetable.1", sizeof(pmd_t));
+		memset(pmd, 0, sizeof(pmd_t));
+	}
+	return pmd;
+}
+
+static Addr current_sb;
+static pgd_t pgd;
+/* TODO optimize performance with a TLB-like cache */
+//static Addr  last_page;
+//static Addr  last_page_tag;
+
+static Addr get_mem_writer(Addr addr)
+{
+	pmd_t*  pmd  = get_pmd(&pgd, addr);
+	pte_t*  pte  = get_pte(pmd, addr);
+	page_t* page = get_page(pte, addr);
+	return page->slot[addr & 0x03ff];
+}
+
+static void set_mem_writer(Addr addr, Addr sb)
+{
+	pmd_t*  pmd  = get_pmd(&pgd, addr);
+	pte_t*  pte  = get_pte(pmd, addr);
+	page_t* page = get_page(pte, addr);
+	page->slot[addr & 0x03ff] = sb;
+}
+
 
 static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 {
@@ -450,12 +527,13 @@ static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 
 static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
 {
-   VG_(printf)(" L %08lx,%lu\n", addr, size);
+   VG_(printf)(" L %08lx,%lu <- SB%08lx\n", addr, size, get_mem_writer(addr));
 }
 
 static VG_REGPARM(2) void trace_store(Addr addr, SizeT size)
 {
    VG_(printf)(" S %08lx,%lu\n", addr, size);
+   set_mem_writer(addr, current_sb);
 }
 
 static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
@@ -583,7 +661,6 @@ void addEvent_Dw ( IRSB* sb, IRAtom* daddr, Int dsize )
 
 static Addr guest_reg_writer[1000];
 static Addr depended_sb[1000];
-static Addr current_sb = 0;
 static Int  n_depended_sb = 0;
 
 static void trace_put(Int offset)
