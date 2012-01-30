@@ -239,7 +239,7 @@ static ULong n_SBs_entered   = 0;
 static ULong n_SBs_completed = 0;
 static ULong n_IRStmts       = 0;
 static ULong n_guest_instrs  = 0;
-static ULong n_guest_instrs_sb  = 0;
+static Int n_guest_instrs_sb = 0;
 static ULong n_Jccs          = 0;
 static ULong n_Jccs_untaken  = 0;
 static ULong n_IJccs         = 0;
@@ -503,6 +503,9 @@ static pgd_t pgd;
 //static Addr  last_page;
 //static Addr  last_page_tag;
 
+static Addr depended_sbs[1000];
+static Int  n_depended_sb = 0;
+
 static Addr get_mem_writer(Addr addr)
 {
 	pmd_t*  pmd  = get_pmd(&pgd, addr);
@@ -519,6 +522,15 @@ static void set_mem_writer(Addr addr, Addr sb)
 	page->slot[addr & 0x03ff] = sb;
 }
 
+static inline void add_depended(Addr depended_sbs[], Addr depended) 
+{
+	Int i;
+	for (i=0; i<n_depended_sb && i<1000; i++)
+		if(depended_sbs[i] == depended) 
+			return;
+	depended_sbs[n_depended_sb++] = depended;
+}
+
 
 static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 {
@@ -527,18 +539,25 @@ static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 
 static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
 {
-   VG_(printf)(" L %08lx,%lu <- SB%08lx\n", addr, size, get_mem_writer(addr));
+	//VG_(printf)(" L %08lx,%lu\n", addr, size);
+	Addr depended = get_mem_writer(addr);
+	if (depended != 0 && depended != current_sb) 
+		add_depended(depended_sbs, depended);
 }
 
 static VG_REGPARM(2) void trace_store(Addr addr, SizeT size)
 {
-   VG_(printf)(" S %08lx,%lu\n", addr, size);
-   set_mem_writer(addr, current_sb);
+	//VG_(printf)(" S %08lx,%lu\n", addr, size);
+	set_mem_writer(addr, current_sb);
 }
 
 static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
 {
-   VG_(printf)(" M %08lx,%lu\n", addr, size);
+	//VG_(printf)(" M %08lx,%lu\n", addr, size);
+	Addr depended = get_mem_writer(addr);
+	if (depended != 0 && depended != current_sb) 
+		add_depended(depended_sbs, depended);
+	set_mem_writer(addr, current_sb);
 }
 
 static void flushEvents(IRSB* sb)
@@ -660,8 +679,6 @@ void addEvent_Dw ( IRSB* sb, IRAtom* daddr, Int dsize )
 /*------------------------------------------------------------*/
 
 static Addr guest_reg_writer[1000];
-static Addr depended_sb[1000];
-static Int  n_depended_sb = 0;
 
 static void trace_put(Int offset)
 {
@@ -671,12 +688,8 @@ static void trace_put(Int offset)
 static void trace_get(Int offset)
 {
 	Addr depended = guest_reg_writer[offset];
-	if (depended != 0 && depended != current_sb) {
-		Int i;
-		for (i=0; i<n_depended_sb; i++)
-			if(depended_sb[i] == depended) return;
-		depended_sb[n_depended_sb++] = depended;
-	}
+	if (depended != 0 && depended != current_sb) 
+		add_depended(depended_sbs, depended);
 }
 
 static void trace_superblock(Addr addr)
@@ -684,7 +697,7 @@ static void trace_superblock(Addr addr)
 	Int i;
 	if (n_depended_sb) {
 		for (i=0; i<n_depended_sb; i++) {
-			VG_(printf)(" D %08lx\n", depended_sb[i]);
+			VG_(printf)(" D %08lx\n", depended_sbs[i]);
 		}
 	}
 	VG_(printf)(" W %d\n", n_guest_instrs_sb);
