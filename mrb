@@ -2,17 +2,15 @@
 
 #DIR=/home/toe/cpu2006/benchspec/CPU2006/401.bzip2/exe
 #BIN=bzip2_base.i386-m32-gcc44-3.bin
-#LOGDIR=/mnt/sdb6/toe/log/$BIN
+LOGDIR=tests/log/$1
 
-# mkdir -p $LOGDIR
+mkdir -p $LOGDIR
 # [ -e $LOGDIR/pipe ] || mkfifo $LOGDIR/pipe
-
-[ -e pipe ] || mkfifo pipe
 
 # date > $LOGDIR/time.start
 
-luajit /home/toe/bin/mrb.lua -c16 -w16 -s50 -d64 < pipe > mrb.out &
-valgrind --tool=lackey --log-file=pipe --trace-mem=yes --trace-superblocks=yes $@
+valgrind --tool=lackey --log-file=$LOGDIR/pipe --trace-mem=yes --trace-superblocks=yes $@
+luajit mrb.lua -nm -c16 -w16 -s50 -d64 < $LOGDIR/pipe > $LOGDIR/mrb.out
 # | split -a 4 -b 512M - $LOGDIR/log
 
 #date > $LOGDIR/time.end

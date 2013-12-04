@@ -10,7 +10,7 @@
 local List = require "list"
 
 function logd(...)
-   print(...)
+   -- print(...)
 end
 
 -- Core
@@ -56,8 +56,7 @@ function Core.tick(clocks)
    -- logd(i_sum, ' in ', clocks, 'clocks')
 end
 
--- to run until at least one core is free (finishes its pending
--- instructions)
+-- drain all the cores
 function Core.run()
    local clocks = 0
    local isum = 0
@@ -70,7 +69,9 @@ function Core.run()
    end
 
    Core.clocks = Core.clocks + clocks
-   
+
+   -- the following code is used for policy to run until at least one
+   -- core is free (finishes its pending instructions)
 
    -- -- collect the cores with pending sb's to run
    -- local busy_cores = {}
@@ -185,7 +186,7 @@ function issue_sb(rob)
       end      
 
       -- TODO add a switch verbose or terse
-      logd(w_sum, '->', w_max)
+      print(Core.clocks, w_sum, w_max)
    end
 end
 
@@ -215,7 +216,7 @@ function set_sb_weight(w)
    sb_weight = w
 end
 
-function parse_lackey_log(sb_size)
+function parse_lackey_log(sb_size, sb_merge)
    local i = 0
    local weight_accu = 0
    for line in io.lines() do
@@ -223,7 +224,7 @@ function parse_lackey_log(sb_size)
 	 i = i + 1
 	 local k = line:sub(1,2)
 	 if k == 'SB' then
-	    if weight_accu >= sb_size then
+	    if not sb_merge or weight_accu >= sb_size then
 	       set_sb_weight(weight_accu)
 	       end_sb()
 	       start_sb(line:sub(4))	       
@@ -245,6 +246,7 @@ local core_num = 16
 local rob_w = 16
 local rob_d = 8
 local sb_size = 50
+local sb_merge = false
 
 for i, v in ipairs(arg) do
    --print(type(v))
@@ -260,6 +262,9 @@ for i, v in ipairs(arg) do
    elseif (v:sub(1,2) == "-s") then
       --print("minimum superblock size:")
       sb_size = tonumber(v:sub(3))
+   elseif (v:sub(1,2) == "-mg") then
+      --print("minimum superblock size:")
+      sb_merge = true
    end
 end
 
@@ -271,15 +276,16 @@ end
 
 rob_w = core_num
 init_rob(rob, rob_d, rob_w)
-parse_lackey_log(sb_size)
+parse_lackey_log(sb_size, sb_merge)
 
 -- summarize
+print("## summary")
 local inst_total_sum = 0
 for i=1, Core.num do
-   print(Core[i].inst_total, Core[i].sb_cnt)
+   print("##", Core[i].inst_total, Core[i].sb_cnt)
    inst_total_sum = inst_total_sum + Core[i].inst_total
 end
 
-print ("c/s/w/d=" .. core_num .. "/" .. sb_size .. "/" .. rob_w .. "/" .. rob_d .. ":", "execute " .. inst_total_sum .. " insts in " .. Core.clocks .. ": ", inst_total_sum/Core.clocks)
+print ("## c/s/w/d=" .. core_num .. "/" .. sb_size .. "/" .. rob_w .. "/" .. rob_d .. ":", "execute " .. inst_total_sum .. " insts in " .. Core.clocks .. ": ", inst_total_sum/Core.clocks)
 
 --Prof.stop()
