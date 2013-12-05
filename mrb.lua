@@ -162,6 +162,7 @@ function issue_sb(rob)
       local l = List.popleft(buf)
       local w_sum = 0
       local w_max = 0
+      local width = 0
 
       -- to make room for more sb's
       Core.run()
@@ -170,6 +171,7 @@ function issue_sb(rob)
       logd('issue:')      
       
       for k, v in pairs(l) do
+	 width = width + 1
 	 -- TODO add a switch verbose or terse
 	 logd('     ', v.addr, v.w)
 	 w_sum = w_sum + v.w
@@ -186,7 +188,7 @@ function issue_sb(rob)
       end      
 
       -- TODO add a switch verbose or terse
-      print(Core.clocks, w_sum, w_max)
+      print(Core.clocks, w_sum, w_max, width, w_sum/w_max)
    end
 end
 
