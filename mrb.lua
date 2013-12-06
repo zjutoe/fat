@@ -226,7 +226,8 @@ function parse_lackey_log(sb_size, sb_merge)
 	 i = i + 1
 	 local k = line:sub(1,2)
 	 if k == 'SB' then
-	    if not sb_merge or weight_accu >= sb_size then
+	    -- if not sb_merge or
+	    if weight_accu >= sb_size then
 	       set_sb_weight(weight_accu)
 	       end_sb()
 	       start_sb(line:sub(4))	       
