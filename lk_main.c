@@ -539,7 +539,7 @@ static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 
 static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
 {
-	//VG_(printf)(" L %08lx,%lu\n", addr, size);
+	VG_(printf)(" L %08lx,%lu\n", addr, size);
 	Addr depended = get_mem_writer(addr);
 	if (depended != 0 && depended != current_sb) 
 		add_depended(depended_sbs, depended);
@@ -547,13 +547,13 @@ static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
 
 static VG_REGPARM(2) void trace_store(Addr addr, SizeT size)
 {
-	//VG_(printf)(" S %08lx,%lu\n", addr, size);
+	VG_(printf)(" S %08lx,%lu\n", addr, size);
 	set_mem_writer(addr, current_sb);
 }
 
 static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
 {
-	//VG_(printf)(" M %08lx,%lu\n", addr, size);
+	VG_(printf)(" M %08lx,%lu\n", addr, size);
 	Addr depended = get_mem_writer(addr);
 	if (depended != 0 && depended != current_sb) 
 		add_depended(depended_sbs, depended);
@@ -576,8 +576,8 @@ static void flushEvents(IRSB* sb)
       // Decide on helper fn to call and args to pass it.
       switch (ev->ekind) {
          case Event_Ir: 
-	      //helperName = "trace_instr";
-	      //helperAddr =  trace_instr;  break;
+	      helperName = "trace_instr";
+	      helperAddr =  trace_instr;  break;
 	      continue;
 
          case Event_Dr: helperName = "trace_load";
